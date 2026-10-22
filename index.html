@@ -485,6 +485,8 @@
       border: 2px solid rgba(255,255,255,.75);
       box-shadow: 0 3px 8px rgba(0,0,0,.32);
     }
+    /* 내레이션 · 피드백 중에는 무대 · 대화창 어디를 눌러도 다음으로 넘어간다 */
+    #game-frame.is-advance .cine-stage, #game-frame.is-advance .dialogue-box { cursor: pointer; }
     /* 하단 대화 상자 — 무대 위로 살짝 올라탄다 */
     .dialogue-box {
       position: relative; z-index: 8; margin-top: -18px;
@@ -1704,8 +1706,11 @@
                 class="w-full text-sm font-bold border-2 border-slate-200 rounded-xl px-3 py-2 focus:border-indigo-300 outline-none"/>
             </div>
           </div>
-          <button onclick="UI.saveAvatar()" class="w-full py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition mb-2">${firstRun ? '이 모습으로 시작하기!' : '저장하기'}</button>
-          ${firstRun ? '' : '<button onclick="UI.closeModal()" class="w-full py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">취소</button>'}
+          <!-- 시작 · 저장 버튼은 팝업 하단에 고정 — 스크롤하지 않아도 보이게 -->
+          <div class="sticky -bottom-6 -mx-6 -mb-6 px-6 pt-3 pb-5 bg-white border-t border-slate-200 z-10">
+            <button onclick="UI.saveAvatar()" class="w-full py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition ${firstRun ? '' : 'mb-2'}">${firstRun ? '이 모습으로 시작하기!' : '저장하기'}</button>
+            ${firstRun ? '' : '<button onclick="UI.closeModal()" class="w-full py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">취소</button>'}
+          </div>
         </div>`;
     };
 

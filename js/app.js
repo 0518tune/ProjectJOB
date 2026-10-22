@@ -467,6 +467,20 @@ const UI = {
       else if (['w', 'arrowup', 'enter'].includes(k)) { e.preventDefault(); this.enterSel(); }
       else if (['s', 'arrowdown'].includes(k)) { e.preventDefault(); this.moveSel(0); } // 제자리 점프(위치 확인)
     });
+
+    // 내레이션 · 피드백: 무대나 대화창 아무 곳이나 눌러도 다음으로 (버튼 · 용어 · 기획 패널은 제외)
+    document.addEventListener('click', (e) => {
+      const r = Engine.run;
+      if (!r || (r.phase !== 'narration' && r.phase !== 'feedback')) return;
+      const t = e.target;
+      if (!t.closest || !t.closest('#game-frame .cine-stage, #game-frame .dialogue-box')) return;
+      if (t.closest('button, a, .term')) return;
+      if (r.phase === 'narration') this.nextNarration();
+      else this.afterFeedback();
+    });
+
+    // 창 크기가 바뀌면 무대 높이를 다시 맞춘다
+    window.addEventListener('resize', () => { if (Engine.run && !this._dirNote) this.applyPanelLayout(); });
   },
 
   /** 잡보드에서 좌우 이동 — 아바타가 선택한 트랙 입구로 걸어감 */
@@ -888,7 +902,7 @@ const UI = {
           <p class="text-[15px] leading-relaxed text-slate-700 font-medium"><span id="type-line"></span><span class="type-caret"></span></p>
         </div>
         <button onclick="UI.nextNarration()" class="mt-2.5 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl font-black text-slate-600 hover:text-slate-800 transition">
-          <span class="text-xs">계속 읽기</span><span class="cine-hint">Enter</span><span class="next-caret">▼</span>
+          <span class="text-xs">계속 읽기</span><span class="cine-hint">아무 곳이나 클릭 · Enter</span><span class="next-caret">▼</span>
         </button>`;
     } else if (isFeedback) {
       /* --- 선택 즉시 피드백 연출: NPC 대사 + 스탯 변동 --- */
@@ -911,11 +925,13 @@ const UI = {
         <p class="text-[15px] leading-relaxed text-slate-700 font-medium">"${Terms.highlight(this.feedbackLine(choice, fx2))}"</p>
         <div class="flex gap-1.5 flex-wrap justify-center my-2.5">${chips.join('') || '<span class="text-xs text-slate-400">스탯 변동 없음</span>'}</div>
         <button onclick="UI.afterFeedback()" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl font-black text-slate-600 hover:text-slate-800 transition">
-          <span class="text-xs">계속</span><span class="cine-hint">Enter</span><span class="next-caret">▼</span>
+          <span class="text-xs">계속</span><span class="cine-hint">아무 곳이나 클릭 · Enter</span><span class="next-caret">▼</span>
         </button>`;
     } else {
+      // 이미 읽은 상황은 두 줄로 접어 선택지가 한 화면에 다 들어오게 한다 (전문은 title로)
+      const recap = (sc.narration || []).join(' ');
       bodyHtml = `
-        ${prevLines ? `<div class="flex flex-col gap-1 mb-1.5 opacity-55">${prevLines}</div>` : ''}
+        ${recap ? `<p class="text-[13px] leading-relaxed text-slate-500 opacity-70 mb-1.5 line-clamp-2" title="${recap.replace(/"/g, '&quot;')}">${Terms.highlight(recap)}</p>` : ''}
         <h3 class="text-[16px] font-extrabold text-slate-800 leading-snug mb-2 fade-up">${Terms.highlight(sc.q)}</h3>
         <div class="flex flex-col gap-2">
           ${sc.choices
@@ -938,7 +954,7 @@ const UI = {
       : { name: '📍 상황', color: '#9a6b43' };
 
     $('#game-view').innerHTML = `
-      <div class="max-w-2xl mx-auto flex flex-col" style="max-height:88vh;">
+      <div id="game-frame" class="max-w-2xl mx-auto flex flex-col${isNarration || isFeedback ? ' is-advance' : ''}">
         <!-- 퀘스트 바 -->
         <div class="quest-bar shrink-0">
           <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl shrink-0" style="background:${job.color}22;color:${job.color}">${Icons.forJob(job, { size: 16, color: job.color })}</span>
@@ -1040,6 +1056,26 @@ const UI = {
     const dlg = document.querySelector('.dialogue-box .dlg-scroll');
     if (stage) stage.style.height = on ? 'clamp(118px, 19vh, 205px)' : 'clamp(190px, 33vh, 330px)';
     if (dlg) dlg.style.maxHeight = on ? '19vh' : '36vh';
+    if (!on) this.fitStage();
+  },
+
+  /** 셸 안에 남은 높이를 재서 무대를 줄인다 — 대화창(특히 선택지 3개)이 스크롤 없이 다 보이게.
+   * 16:9 셸에서 HUD 헤더가 약 190px을 차지해, 무대 기본 높이(33vh)를 그대로 두면 선택지가 잘렸다. */
+  fitStage() {
+    const stage = document.querySelector('.cine-stage');
+    const frame = $('#game-frame');
+    const scroller = $('#game-scroll');
+    if (!stage || !frame || !scroller) return;
+    const header = scroller.querySelector('header');
+    const main = scroller.querySelector('main');
+    const cs = main ? getComputedStyle(main) : null;
+    const pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 40;
+    const avail = scroller.clientHeight - (header ? header.offsetHeight : 0) - pad;
+    const others = frame.offsetHeight - stage.offsetHeight;
+    stage.style.height = Math.max(120, Math.min(stage.offsetHeight, avail - others)) + 'px';
+    // 아주 낮은 창에서 그래도 넘치면 대화창 하단이 보이도록 맞춘다
+    const box = document.querySelector('.dialogue-box');
+    if (box) box.scrollIntoView({ block: 'nearest' });
   },
 
   /** 큐 한 줄을 사람이 읽는 문장으로 (연출 노트 표시용) */
